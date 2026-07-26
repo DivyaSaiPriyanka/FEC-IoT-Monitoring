@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudSense Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">CS</div>
+      <div>
+        <div class="brand-name">CloudSense</div>
+        <div class="brand-subtitle">IoT Operations</div>
+      </div>
+    </div>
+
+    <nav class="nav-list">
+      <a class="nav-item active" href="#overview">Overview</a>
+      <a class="nav-item" href="#sensors">Sensors</a>
+      <a class="nav-item" href="#nodes">Fog Nodes</a>
+      <a class="nav-item" href="#alerts">Alerts</a>
+    </nav>
+
+    <div class="sidebar-status">
+      <div class="sidebar-status-title">Platform Status</div>
+      <div class="sidebar-status-row">
+        <span class="status-dot" id="sidebar-status-dot"></span>
+        <span id="sidebar-status-text">Connecting</span>
+      </div>
+      <div class="sidebar-status-meta">AWS Cloud Backend</div>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <header class="topbar">
+      <div>
+        <div class="page-kicker">Smart Environment Monitoring</div>
+        <h1>Operations Dashboard</h1>
+      </div>
+      <div class="topbar-actions">
+        <div class="connection-chip">
+          <span class="status-dot" id="conn-dot"></span>
+          <span id="conn-text">Connecting</span>
+        </div>
+        <button class="refresh-button" id="manual-refresh" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <section class="summary-grid" id="overview">
+      <article class="summary-card">
+        <div class="summary-label">Active Sensors</div>
+        <div class="summary-value" id="metric-sensors">0</div>
+        <div class="summary-foot">Live telemetry streams</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Connected Fog Nodes</div>
+        <div class="summary-value" id="metric-nodes">0</div>
+        <div class="summary-foot">Reporting edge locations</div>
+      </article>
+      <article class="summary-card">
+        <div class="summary-label">Processed Batches</div>
+        <div class="summary-value" id="metric-batches">0</div>
+        <div class="summary-foot">Persisted sensor windows</div>
+      </article>
+      <article class="summary-card warning-card">
+        <div class="summary-label">Detected Anomalies</div>
+        <div class="summary-value" id="metric-anomalies">0</div>
+        <div class="summary-foot">Across all sensor streams</div>
+      </article>
+    </section>
+
+    <section class="system-strip">
+      <div class="system-item">
+        <span class="system-label">Queue</span>
+        <strong id="queue-length">0</strong>
+      </div>
+      <div class="system-item">
+        <span class="system-label">Backend</span>
+        <strong id="backend-health">Checking</strong>
+      </div>
+      <div class="system-item">
+        <span class="system-label">Last Updated</span>
+        <strong id="last-refresh">–</strong>
+      </div>
+      <div class="system-item">
+        <span class="system-label">Refresh Rate</span>
+        <strong>5 seconds</strong>
+      </div>
+    </section>
+
+    <section class="section-block" id="sensors">
+      <div class="section-heading">
+        <div>
+          <div class="section-kicker">Live Monitoring</div>
+          <h2>Sensor Overview</h2>
+        </div>
+        <div class="section-note">Latest aggregated values from all active fog nodes</div>
+      </div>
+      <div class="sensor-grid" id="sensor-grid">
+        <div class="empty-state">Waiting for live sensor data…</div>
+      </div>
+    </section>
+
+    <section class="lower-grid">
+      <article class="panel" id="nodes">
+        <div class="panel-head">
+          <div>
+            <div class="section-kicker">Edge Network</div>
+            <h2>Fog Nodes</h2>
+          </div>
+          <span class="panel-badge" id="node-count-badge">0 connected</span>
+        </div>
+        <div class="node-list" id="node-list">
+          <div class="empty-inline">No fog nodes connected</div>
+        </div>
+      </article>
+
+      <article class="panel" id="alerts">
+        <div class="panel-head">
+          <div>
+            <div class="section-kicker">Monitoring</div>
+            <h2>System Alerts</h2>
+          </div>
+          <span class="panel-badge alert-badge" id="alert-count-badge">0 alerts</span>
+        </div>
+        <div class="alert-list" id="alert-list">
+          <div class="empty-inline">No active alerts</div>
+        </div>
+      </article>
+    </section>
+  </main>
+</div>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+</body>
+</html>

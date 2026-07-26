@@ -1,0 +1,57 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/fec_data.db
+      GUNICORN_WORKERS: 3
+      GUNICORN_THREADS: 4
+    volumes:
+      - fec_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: >
+      gunicorn --bind 0.0.0.0:8000 --workers 3 --threads 4
+      --worker-class gthread --access-logfile - --error-logfile - app:app
+
+  worker:
+    build:
+      context: ./backend
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: sqlite:////data/fec_data.db
+    volumes:
+      - fec_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["python", "worker.py"]
+
+  fog_node:
+    build:
+      context: .
+      dockerfile: fog/Dockerfile
+    environment:
+      BACKEND_URL: http://backend:8000/api/ingest
+    depends_on:
+      - backend
+    command: ["python", "fog_node.py", "--backend-url", "http://backend:8000/api/ingest"]
+
+volumes:
+  fec_data:

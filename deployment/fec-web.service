@@ -1,0 +1,21 @@
+[Unit]
+Description=FEC Backend - Gunicorn web service
+After=network.target redis-server.service
+Wants=redis-server.service
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/opt/fec_project/backend
+EnvironmentFile=/opt/fec_project/backend/.env
+ExecStart=/opt/fec_project/backend/venv/bin/gunicorn \
+    -c /opt/fec_project/deployment/gunicorn_config.py \
+    app:app
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
