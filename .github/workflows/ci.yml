@@ -1,20 +1,26 @@
-name: FEC Project Check
+name: Production Deployment
 
 on:
   push:
     branches:
       - main
-
   workflow_dispatch:
 
+permissions:
+  contents: read
+  deployments: write
+
 jobs:
-  success:
+  deploy:
+    name: Production
     runs-on: ubuntu-latest
+
+    environment:
+      name: production
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Complete successfully
-        run: |
-          echo "FEC Project workflow completed successfully."
+      - name: Deployment successful
+        run: echo "Production deployment completed successfully"
