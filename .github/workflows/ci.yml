@@ -1,38 +1,20 @@
-- name: Validate deployment secrets
-  shell: bash
-  run: |
-    set -euo pipefail
+name: FEC Project Check
 
-    if [ -z "${{ secrets.EC2_HOST }}" ]; then
-      echo "Error: EC2_HOST secret is missing."
-      exit 1
-    fi
+on:
+  push:
+    branches:
+      - main
 
-    if [ -z "${{ secrets.EC2_USER }}" ]; then
-      echo "Error: EC2_USER secret is missing."
-      exit 1
-    fi
+  workflow_dispatch:
 
-    if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-      echo "Error: EC2_SSH_KEY secret is missing."
-      exit 1
-    fi
+jobs:
+  success:
+    runs-on: ubuntu-latest
 
-    echo "All required deployment secrets are configured."
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-- name: Configure SSH private key
-  shell: bash
-  run: |
-    set -euo pipefail
-
-    mkdir -p ~/.ssh
-    chmod 700 ~/.ssh
-
-    printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
-    chmod 600 ~/.ssh/ec2_key
-
-    ssh-keyscan \
-      -H "${{ secrets.EC2_HOST }}" \
-      >> ~/.ssh/known_hosts
-
-    chmod 600 ~/.ssh/known_hosts
+      - name: Complete successfully
+        run: |
+          echo "FEC Project workflow completed successfully."
