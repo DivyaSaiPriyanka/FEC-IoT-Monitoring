@@ -1,228 +1,38 @@
-name: Deploy FEC Project to EC2
+- name: Validate deployment secrets
+  shell: bash
+  run: |
+    set -euo pipefail
 
-on:
-  push:
-    branches:
-      - main
+    if [ -z "${{ secrets.EC2_HOST }}" ]; then
+      echo "Error: EC2_HOST secret is missing."
+      exit 1
+    fi
 
-  workflow_dispatch:
+    if [ -z "${{ secrets.EC2_USER }}" ]; then
+      echo "Error: EC2_USER secret is missing."
+      exit 1
+    fi
 
-permissions:
-  contents: read
+    if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
+      echo "Error: EC2_SSH_KEY secret is missing."
+      exit 1
+    fi
 
-concurrency:
-  group: fec-project-production-deployment
-  cancel-in-progress: true
+    echo "All required deployment secrets are configured."
 
-jobs:
-  deploy:
-    name: Deploy application
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+- name: Configure SSH private key
+  shell: bash
+  run: |
+    set -euo pipefail
 
-    env:
-      ARCHIVE_NAME: fec-project-release.tar.gz
-      REMOTE_ARCHIVE: /tmp/fec-project-release.tar.gz
-      REMOTE_APP_DIR: /home/${{ secrets.EC2_USER }}/fec_project
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
 
-    steps:
-      # ------------------------------------------------------------
-      # 1. Download the latest repository code
-      # ------------------------------------------------------------
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
+    chmod 600 ~/.ssh/ec2_key
 
-      # ------------------------------------------------------------
-      # 2. Configure the EC2 SSH private key
-      # ------------------------------------------------------------
-      - name: Configure SSH private key
-        shell: bash
-        run: |
-          set -e
+    ssh-keyscan \
+      -H "${{ secrets.EC2_HOST }}" \
+      >> ~/.ssh/known_hosts
 
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/ec2_key
-          chmod 600 ~/.ssh/ec2_key
-
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-
-      # ------------------------------------------------------------
-      # 3. Create the archive outside the repository directory
-      # ------------------------------------------------------------
-      - name: Create deployment archive
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ARCHIVE_PATH="${RUNNER_TEMP}/${ARCHIVE_NAME}"
-
-          echo "Creating deployment archive..."
-
-          tar \
-            --exclude=".git" \
-            --exclude=".github" \
-            --exclude="venv" \
-            --exclude=".venv" \
-            --exclude="backend/venv" \
-            --exclude="fog/venv" \
-            --exclude="backend/.env" \
-            --exclude="fog/.env" \
-            --exclude="backend/fec_data.db" \
-            --exclude="*.db" \
-            --exclude="__pycache__" \
-            --exclude="*/__pycache__" \
-            --exclude="*.pyc" \
-            --exclude="*.pyo" \
-            --exclude=".pytest_cache" \
-            --exclude=".mypy_cache" \
-            --exclude=".DS_Store" \
-            --exclude="node_modules" \
-            -czf "${ARCHIVE_PATH}" .
-
-          echo "Archive created successfully:"
-          ls -lh "${ARCHIVE_PATH}"
-
-      # ------------------------------------------------------------
-      # 4. Upload the archive to EC2
-      # ------------------------------------------------------------
-      - name: Upload release to EC2
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "Uploading deployment archive..."
-
-          scp \
-            -i ~/.ssh/ec2_key \
-            -o StrictHostKeyChecking=yes \
-            "${RUNNER_TEMP}/${ARCHIVE_NAME}" \
-            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:${REMOTE_ARCHIVE}"
-
-          echo "Archive uploaded successfully."
-
-      # ------------------------------------------------------------
-      # 5. Extract and deploy the application on EC2
-      # ------------------------------------------------------------
-      - name: Deploy application on EC2
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          ssh \
-            -i ~/.ssh/ec2_key \
-            -o StrictHostKeyChecking=yes \
-            "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
-            "REMOTE_APP_DIR='${REMOTE_APP_DIR}' REMOTE_ARCHIVE='${REMOTE_ARCHIVE}' bash -s" <<'DEPLOY_SCRIPT'
-
-          set -euo pipefail
-
-          echo "Starting deployment..."
-
-          # Create the application directory if it does not exist.
-          mkdir -p "${REMOTE_APP_DIR}"
-
-          # Preserve the backend environment file.
-          if [ -f "${REMOTE_APP_DIR}/backend/.env" ]; then
-            cp "${REMOTE_APP_DIR}/backend/.env" /tmp/fec-backend-env-backup
-            echo "Existing backend .env backed up."
-          fi
-
-          # Preserve the fog environment file if present.
-          if [ -f "${REMOTE_APP_DIR}/fog/.env" ]; then
-            cp "${REMOTE_APP_DIR}/fog/.env" /tmp/fec-fog-env-backup
-            echo "Existing fog .env backed up."
-          fi
-
-          # Preserve the SQLite database if present.
-          if [ -f "${REMOTE_APP_DIR}/backend/fec_data.db" ]; then
-            cp "${REMOTE_APP_DIR}/backend/fec_data.db" /tmp/fec-data-db-backup
-            echo "Existing database backed up."
-          fi
-
-          # Remove the previous application files while keeping the folder.
-          find "${REMOTE_APP_DIR}" \
-            -mindepth 1 \
-            -maxdepth 1 \
-            -exec rm -rf {} +
-
-          echo "Extracting the new release..."
-
-          tar \
-            -xzf "${REMOTE_ARCHIVE}" \
-            -C "${REMOTE_APP_DIR}"
-
-          # Restore the backend environment file.
-          if [ -f /tmp/fec-backend-env-backup ]; then
-            mkdir -p "${REMOTE_APP_DIR}/backend"
-            mv /tmp/fec-backend-env-backup "${REMOTE_APP_DIR}/backend/.env"
-            chmod 600 "${REMOTE_APP_DIR}/backend/.env"
-            echo "Backend .env restored."
-          fi
-
-          # Restore the fog environment file.
-          if [ -f /tmp/fec-fog-env-backup ]; then
-            mkdir -p "${REMOTE_APP_DIR}/fog"
-            mv /tmp/fec-fog-env-backup "${REMOTE_APP_DIR}/fog/.env"
-            chmod 600 "${REMOTE_APP_DIR}/fog/.env"
-            echo "Fog .env restored."
-          fi
-
-          # Restore the SQLite database.
-          if [ -f /tmp/fec-data-db-backup ]; then
-            mkdir -p "${REMOTE_APP_DIR}/backend"
-            mv /tmp/fec-data-db-backup \
-              "${REMOTE_APP_DIR}/backend/fec_data.db"
-            echo "Database restored."
-          fi
-
-          cd "${REMOTE_APP_DIR}"
-
-          echo "Checking Docker installation..."
-
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "Error: Docker is not installed on the EC2 server."
-            exit 1
-          fi
-
-          # Select the available Docker Compose command.
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_COMMAND="docker compose"
-          elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE_COMMAND="docker-compose"
-          else
-            echo "Error: Docker Compose is not installed."
-            exit 1
-          fi
-
-          echo "Using: ${COMPOSE_COMMAND}"
-
-          # Stop the previous containers.
-          ${COMPOSE_COMMAND} down --remove-orphans || true
-
-          # Build and start the latest application.
-          ${COMPOSE_COMMAND} build --pull
-          ${COMPOSE_COMMAND} up -d
-
-          echo "Current container status:"
-          ${COMPOSE_COMMAND} ps
-
-          # Remove unused Docker images.
-          docker image prune -f || true
-
-          # Remove the uploaded archive.
-          rm -f "${REMOTE_ARCHIVE}"
-
-          echo "Deployment completed successfully."
-          DEPLOY_SCRIPT
-
-      # ------------------------------------------------------------
-      # 6. Remove the SSH key from the GitHub runner
-      # ------------------------------------------------------------
-      - name: Clean up SSH key
-        if: always()
-        shell: bash
-        run: |
-          rm -f ~/.ssh/ec2_key
+    chmod 600 ~/.ssh/known_hosts
